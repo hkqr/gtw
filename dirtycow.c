@@ -1,4 +1,3 @@
-cat > /tmp/dirtycow.c << 'EOF'
 #include <fcntl.h>
 #include <pthread.h>
 #include <string.h>
@@ -11,7 +10,6 @@ cat > /tmp/dirtycow.c << 'EOF'
 #include <sys/ptrace.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <crypt.h>
 
 int f;
 void *map;
@@ -47,4 +45,3 @@ int main(int argc, char *argv[]) {
     }
     return 0;
 }
-EOF
